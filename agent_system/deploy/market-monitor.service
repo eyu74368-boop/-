@@ -1,0 +1,29 @@
+# /etc/systemd/system/market-monitor.service
+# 기존 안내 대비 변경: root 대신 전용 계정, 토큰은 EnvironmentFile(권한 600)로 분리,
+# 파일시스템 쓰기는 작업 폴더로만 제한, 재시작 폭주 방지.
+[Unit]
+Description=Market Monitor (read-only alerts)
+After=network-online.target
+Wants=network-online.target
+OnFailure=unit-failed-telegram@%n.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=monitor
+Group=monitor
+WorkingDirectory=/opt/agent_system
+EnvironmentFile=/etc/agent_system/monitor.env
+ExecStart=/opt/agent_system/venv/bin/python -m market_monitor
+Restart=on-failure
+RestartSec=10
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/agent_system/data
+
+[Install]
+WantedBy=multi-user.target

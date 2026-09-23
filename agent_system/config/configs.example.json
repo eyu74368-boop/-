@@ -1,0 +1,7 @@
+{
+  "BTC-USD": {"rsi_oversold": 25.0, "rsi_overbought": 75.0, "price_change_thresh": 3.0, "volume_spike_thresh": 3.0},
+  "NVDA": {"rsi_oversold": 30.0, "rsi_overbought": 70.0, "price_change_thresh": 2.0, "volume_spike_thresh": 2.5},
+  "TSLA": {"rsi_oversold": 30.0, "rsi_overbought": 70.0, "price_change_thresh": 2.5, "volume_spike_thresh": 2.5},
+  "AAPL": {"rsi_oversold": 32.0, "rsi_overbought": 68.0, "price_change_thresh": 1.5, "volume_spike_thresh": 2.0},
+  "SOXL": {"rsi_oversold": 30.0, "rsi_overbought": 70.0, "price_change_thresh": 3.0, "volume_spike_thresh": 2.5}
+}

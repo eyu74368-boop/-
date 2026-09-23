@@ -1,0 +1,7 @@
+{
+  "goal": "글로벌 테크 트렌드 탐색 및 뉴스 수집을 통합한 일일 보고서 작성",
+  "allowed_agents": ["LOCAL_AI", "LOCAL_PYTHON", "CLAUDE", "GEMINI", "GROK"],
+  "max_heavy_calls_per_run": 10,
+  "allowed_domains": ["example.com", "news.ycombinator.com"],
+  "forbidden_keywords": ["로그인", "password", "주문 실행", "rm -rf"]
+}

@@ -1,0 +1,23 @@
+# /etc/systemd/system/market-dashboard.service
+# 127.0.0.1 에만 바인딩 → 외부 접속은 Nginx(HTTPS) 또는 SSH 터널로만.
+# (기존 0.0.0.0 바인딩은 비밀번호가 평문 HTTP 로 전송됨)
+[Unit]
+Description=Market Monitor Dashboard (Streamlit)
+After=network.target
+
+[Service]
+Type=simple
+User=monitor
+Group=monitor
+WorkingDirectory=/opt/agent_system
+EnvironmentFile=/etc/agent_system/monitor.env
+ExecStart=/opt/agent_system/venv/bin/streamlit run dashboard.py --server.port 8501 --server.address 127.0.0.1 --server.headless true
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/agent_system/data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+venv/
+agent_workspace/
+data/
+*.db
+*.db-wal
+*.db-shm
+configs.json
+rules.json
+*.env
+.env
