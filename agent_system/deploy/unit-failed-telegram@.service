@@ -1,0 +1,8 @@
+# /etc/systemd/system/unit-failed-telegram@.service
+[Unit]
+Description=Telegram failure notification for %i
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/agent_system/monitor.env
+ExecStart=/usr/local/bin/systemd-telegram-notify.sh %i

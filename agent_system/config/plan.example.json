@@ -1,0 +1,16 @@
+{
+  "tasks": [
+    {"task_id": "SCRAPE_A", "agent": "LOCAL_PYTHON", "instruction": "뉴스 페이지 수집",
+     "payload": {"tool": "fetch_url", "args": {"url": "https://example.com/"}}},
+    {"task_id": "SCRAPE_B", "agent": "LOCAL_PYTHON", "instruction": "커뮤니티 페이지 수집",
+     "payload": {"tool": "fetch_url", "args": {"url": "https://news.ycombinator.com/"}}},
+    {"task_id": "GROK_TREND", "agent": "GROK", "instruction": "오늘의 AI 에이전트 관련 실시간 트렌드 5개 요약"},
+    {"task_id": "LOCAL_FILTER", "agent": "LOCAL_AI", "instruction": "수집한 페이지에서 AI 관련 헤드라인만 추려라",
+     "depends_on": ["SCRAPE_A", "SCRAPE_B"]},
+    {"task_id": "GEMINI_REPORT", "agent": "GEMINI", "instruction": "트렌드와 헤드라인을 종합해 일일 보고서 작성",
+     "depends_on": ["GROK_TREND", "LOCAL_FILTER"]},
+    {"task_id": "SAVE", "agent": "LOCAL_PYTHON", "instruction": "보고서 저장",
+     "payload": {"tool": "save_json", "args": {"filename": "reports/daily.json"}},
+     "depends_on": ["GEMINI_REPORT"]}
+  ]
+}
