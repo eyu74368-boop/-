@@ -42,7 +42,18 @@ def main() -> int:
     p = argparse.ArgumentParser(description="텔레그램 연결 점검")
     p.add_argument("--send", type=int, default=None, help="테스트 메시지를 보낼 chat_id")
     p.add_argument("--file", default=None, help="--send 와 함께: 테스트로 보낼 파일 경로")
+    p.add_argument("--send-me", action="store_true",
+                   help=".env 의 TELEGRAM_CHAT_ID 로 테스트 메시지·README.md 발송")
     args = p.parse_args()
+
+    if args.send_me and args.send is None:
+        try:
+            args.send = int(os.getenv("TELEGRAM_CHAT_ID", ""))
+        except ValueError:
+            print("❗ .env 의 TELEGRAM_CHAT_ID 가 비었거나 숫자가 아닙니다. chat_id 를 먼저 입력하세요.")
+            return 1
+        readme = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "README.md")
+        args.file = args.file or readme
 
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     if not token:
