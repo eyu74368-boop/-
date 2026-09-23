@@ -33,7 +33,7 @@
 | `dashboard.py` | Streamlit 관리 화면 (선택) |
 | `config/*.example.json` | 규칙·계획·종목 설정 예시 |
 | `deploy/` | systemd 서비스, 장애 알림 스크립트, 환경변수 예시 |
-| `tests/` | 단위 테스트 52개 (네트워크·API 키 불필요) |
+| `tests/` | 단위 테스트 (네트워크·API 키 불필요) |
 
 ## 텔레그램으로 로컬 AI 에 명령하기 (3단계)
 
@@ -71,6 +71,39 @@ python -m telegram_bot
 | `/reset`, `/help` | 대화 초기화 / 도움말 |
 
 계획 파일은 `agent_workspace/plans/` 또는 `config/` 에 이름에 `plan` 이 들어간 `.json` 으로 둔다.
+
+## 로컬 AI 자율 실행 (`/goal`)
+
+텔레그램에서 `/goal 목표` 를 보내면 로컬 AI(qwen2.5)가 아래 도구 중 하나를 골라 실행하고,
+결과를 보고 다음 도구를 고르는 과정을 목표 달성까지 반복한다. 단계마다 진행 상황을 텔레그램으로 보고한다.
+
+```
+/goal 목표 → [로컬 AI 판단(JSON)] → [규칙 검사] → [도구 실행] → 결과(관찰) → 다시 판단 … → finish → 최종 보고
+```
+
+| 도구 | 하는 일 |
+|---|---|
+| `web_search`, `news_search` | 검색 (네이버 API 키가 있으면 네이버, 없으면 Bing RSS) |
+| `fetch_url` | 웹페이지 본문 읽기 (robots.txt 준수, 요청 간격 제한) |
+| `list_files`, `read_file`, `write_file` | 작업 폴더 안에서만 파일 조회·저장 |
+| `ask_model` | 설치된 다른 로컬 모델에게 맡기기 (exaone3.5 한국어 글쓰기, qwen3 추론 등) |
+| `describe_image` | 텔레그램으로 받은 사진 분석 (moondream) |
+| `market_check` | 종목 RSI·이동평균·볼린저 시그널, 일봉 추세 (읽기 전용) |
+| `notify_user`, `send_file` | 중간 보고, 결과 파일 전송 |
+| `ask_cloud` | API 키가 있는 클라우드 AI 에게 어려운 분석 위임 (호출 한도 적용) |
+
+예시
+```
+/goal 오늘 상수도 누수 탐지 관련 뉴스 5개를 찾아 요약하고 파일로 보내줘
+/goal inbox 에 있는 사진을 분석해서 무엇이 찍혔는지 알려줘
+/goal NVDA 와 TSLA 의 현재 지표를 확인하고 비교표를 만들어 보내줘
+```
+
+- 중단: `/stop` · 도구 목록: `/tools` · 실행 기록: `reports/goal_날짜.md` (`/get` 으로 받기)
+- 규칙: `config/rules.autonomy.json` (금지 키워드, 허용 사이트, 클라우드 호출 한도)
+- 안전장치: 등록된 도구만 사용(코드 실행 없음), 최대 12단계, 형식 오류 3회·같은 행동 3회 반복 시 중단,
+  로그인·결제·주문·게시는 하지 않음
+- PC 명령창에서 시험: `python -m orchestrator auto "목표" --rules config/rules.autonomy.json`
 허용되지 않은 chat_id 의 메시지는 응답 없이 무시하고 로그에만 남긴다.
 
 ## 빠른 시작

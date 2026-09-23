@@ -18,7 +18,7 @@ import sys
 from envfile import load_env
 from orchestrator.agents.llm import OllamaAgent
 from orchestrator.guard import Rules
-from orchestrator.registry import run_plan_file
+from orchestrator.registry import build_autonomous_agent, run_plan_file
 
 from .api import TelegramClient, TelegramError
 from .bot import TelegramBot
@@ -45,6 +45,13 @@ def main() -> int:
 
     workspace = os.path.abspath(os.getenv("BOT_WORKSPACE", "./agent_workspace"))
     rules_path = os.getenv("BOT_RULES_PATH", "config/rules.example.json")
+    autonomy_rules_path = os.getenv("BOT_AUTONOMY_RULES", "config/rules.autonomy.json")
+    try:
+        max_steps = int(os.getenv("BOT_MAX_STEPS", "12"))
+        Rules.load(autonomy_rules_path)
+    except (OSError, ValueError) as e:
+        logging.error("자율 실행 설정 오류: %s", e)
+        return 2
     try:
         client = TelegramClient(os.getenv("TELEGRAM_BOT_TOKEN", ""))
         me = client.get_me()
@@ -59,6 +66,18 @@ def main() -> int:
         rules = Rules.load(rules_path)  # 실행 때마다 읽어 규칙 수정을 즉시 반영
         return run_plan_file(plan_path, rules, workspace, os.path.join(workspace, "state.json"))
 
+    def goal_runner(goal: str, chat_id: int, on_event, stop_event):
+        rules = Rules.load(autonomy_rules_path)
+        agent = build_autonomous_agent(
+            workspace, rules,
+            notify=lambda text: client.send_text(chat_id, "📨 " + text),
+            send_file=lambda path, caption: client.send_document(chat_id, path, caption),
+            on_event=on_event, stop_event=stop_event, max_steps=max_steps,
+        )
+        return agent.run(goal)
+
+    tools_desc = build_autonomous_agent(workspace, Rules.load(autonomy_rules_path)).toolbox.describe()
+
     bot = TelegramBot(
         client,
         allowed_chat_ids=chat_ids,
@@ -67,6 +86,8 @@ def main() -> int:
         health_fn=local_ai.health,
         plan_runner=plan_runner,
         plan_dirs=[os.path.join(workspace, "plans"), "config"],
+        goal_runner=goal_runner,
+        tools_desc="/goal 에서 로컬 AI 가 쓸 수 있는 도구\n\n" + tools_desc,
     )
     signal.signal(signal.SIGTERM, bot.stop)
     signal.signal(signal.SIGINT, bot.stop)

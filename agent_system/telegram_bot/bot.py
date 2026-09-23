@@ -34,6 +34,9 @@ SYSTEM_PROMPT = (
 )
 
 HELP = """사용 가능한 명령
+/goal 목표 - 로컬 AI 가 도구(검색·웹·파일·다른 모델·이미지·시장·보고)를 스스로 골라 목표 수행
+/stop - 진행 중인 /goal 중단
+/tools - /goal 에서 쓸 수 있는 도구 목록
 /status - 로컬 AI 작동 상태 점검
 /reset - 대화 기록 초기화
 /files [폴더] - 작업 폴더 파일 목록
@@ -48,6 +51,8 @@ HELP = """사용 가능한 명령
 ChatFn = Callable[[str, List[Dict[str, str]]], str]  # (system, messages) -> reply
 HealthFn = Callable[[], Dict[str, Any]]
 PlanRunner = Callable[[str], Tuple[bool, str]]  # (plan_path) -> (ok, summary)
+# (goal, chat_id, on_event, stop_event) -> RunResult 유사 객체(status, answer, steps, report_path)
+GoalRunner = Callable[[str, int, Callable[[str], None], threading.Event], Any]
 
 
 class PathError(ValueError):
@@ -97,6 +102,8 @@ class TelegramBot:
         health_fn: HealthFn,
         plan_runner: Optional[PlanRunner] = None,
         plan_dirs: Iterable[str] = (),
+        goal_runner: Optional[GoalRunner] = None,
+        tools_desc: str = "",
     ):
         self.client = client
         self.allowed: Set[int] = set(allowed_chat_ids)
@@ -111,7 +118,10 @@ class TelegramBot:
         self.plan_dirs = [os.path.realpath(d) for d in plan_dirs]
         self.offset_path = os.path.join(self.workspace, ".telegram_offset")
         self.history: Dict[int, Deque[Dict[str, str]]] = defaultdict(lambda: deque(maxlen=HISTORY_TURNS * 2))
-        self._run_lock = threading.Lock()
+        self.goal_runner = goal_runner
+        self.tools_desc = tools_desc
+        self._run_lock = threading.Lock()  # /run 과 /goal 은 동시에 하나만
+        self._goal_stop = threading.Event()
         self._stop = threading.Event()
         self._warned: Set[int] = set()
 
@@ -203,6 +213,9 @@ class TelegramBot:
             "/get": lambda: self.cmd_get(chat_id, arg),
             "/plans": lambda: self.cmd_plans(chat_id),
             "/run": lambda: self.cmd_run(chat_id, arg),
+            "/goal": lambda: self.cmd_goal(chat_id, arg),
+            "/stop": lambda: self.cmd_stop(chat_id),
+            "/tools": lambda: self.reply(chat_id, self.tools_desc or "도구 정보가 없습니다."),
         }
         handler = handlers.get(cmd)
         if handler is None:
@@ -343,3 +356,42 @@ class TelegramBot:
 
         self.reply(chat_id, f"▶ 계획 실행 시작: {arg}\n완료되면 결과를 보내드립니다.")
         threading.Thread(target=worker, daemon=True, name="plan-runner").start()
+
+    # ---------- 자율 실행 ----------
+    def cmd_goal(self, chat_id: int, goal: str) -> None:
+        """로컬 AI 자율 실행을 백그라운드로 시작한다."""
+        if self.goal_runner is None:
+            self.reply(chat_id, "자율 실행 기능이 꺼져 있습니다.")
+            return
+        if not goal:
+            self.reply(chat_id, "사용법: /goal 목표\n예: /goal 오늘 상수도 누수 탐지 관련 뉴스 5개를 찾아 요약해서 파일로 보내줘")
+            return
+        if not self._run_lock.acquire(blocking=False):
+            self.reply(chat_id, "이미 실행 중인 작업이 있습니다. /stop 으로 중단하거나 끝날 때까지 기다려 주세요.")
+            return
+        self._goal_stop.clear()
+
+        def worker() -> None:
+            started = time.monotonic()
+            try:
+                res = self.goal_runner(goal, chat_id, lambda m: self.reply(chat_id, m), self._goal_stop)
+                head = {"DONE": "✅ 목표 완료", "STOPPED": "⏹ 중단됨", "MAX_STEPS": "⚠️ 단계 한도 도달"}.get(
+                    res.status, "❌ 실패")
+                tail = f"\n\n📄 실행 기록: /get {res.report_path}" if res.report_path else ""
+                self.reply(chat_id, f"{head} ({len(res.steps)}단계, {time.monotonic() - started:.0f}초)\n\n"
+                                    f"{res.answer}{tail}")
+            except Exception as e:
+                log.exception("자율 실행 실패")
+                self.reply(chat_id, f"❌ 자율 실행 오류: {e}")
+            finally:
+                self._run_lock.release()
+
+        self.reply(chat_id, f"▶ 목표 접수: {goal}\n로컬 AI 가 단계별로 진행 상황을 보고합니다. 중단: /stop")
+        threading.Thread(target=worker, daemon=True, name="goal-runner").start()
+
+    def cmd_stop(self, chat_id: int) -> None:
+        if not self._run_lock.locked():
+            self.reply(chat_id, "진행 중인 작업이 없습니다.")
+            return
+        self._goal_stop.set()
+        self.reply(chat_id, "⏹ 중단 요청을 보냈습니다. 현재 단계가 끝나면 멈춥니다.")

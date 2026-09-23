@@ -42,6 +42,41 @@ def build_agents(mock: bool, workspace: str) -> Dict[str, Agent]:
     return agents
 
 
+def build_autonomous_agent(
+    workspace: str,
+    rules: Rules,
+    notify=None,
+    send_file=None,
+    on_event=None,
+    stop_event=None,
+    max_steps: int = 12,
+):
+    """로컬 AI 자율 에이전트를 환경변수 설정대로 구성한다.
+
+    - 판단 모델: OLLAMA_MODEL (기본 qwen2.5:7b)
+    - 클라우드 AI 는 API 키가 있는 것만 ask_cloud 도구로 제공
+    """
+    from .autonomy import AutonomousAgent
+    from .tools import BuiltinTools, build_toolbox
+
+    local = OllamaAgent()
+    cloud = {}
+    for cls in (ClaudeAgent, GeminiAgent, GrokAgent):
+        try:
+            cloud[cls.name] = cls()
+        except AgentConfigError:
+            pass
+    guard = RuleGuard(rules, heavy_agents=set(cloud))
+    tools = BuiltinTools(workspace, local, notify=notify, send_file=send_file, cloud=cloud)
+    toolbox = build_toolbox(tools, guard)
+
+    def chat(system, messages, json_mode):
+        return local.chat_messages(system, messages, json_mode)
+
+    return AutonomousAgent(chat, toolbox, rules, workspace, max_steps=max_steps,
+                           on_event=on_event, stop_event=stop_event)
+
+
 def format_report(tasks: Iterable[Task]) -> str:
     """태스크 결과를 한 줄씩 요약한다."""
     lines = []

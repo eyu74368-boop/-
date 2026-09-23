@@ -261,3 +261,42 @@ def test_client_send_document_uses_long_timeout(tmp_path):
     f.write_text("x")
     TelegramClient("1:abc", session=s).send_document(1, str(f), caption="c")
     assert s.posts[0]["method"] == "sendDocument" and s.posts[0]["timeout"] == 120
+
+
+# ---------- /goal, /stop ----------
+def test_goal_runs_in_background_and_can_stop(tmp_path):
+    from types import SimpleNamespace
+    started, got_stop = threading.Event(), threading.Event()
+
+    def goal_runner(goal, chat_id, on_event, stop_event):
+        on_event("🔧 1/12 web_search")
+        started.set()
+        stop_event.wait(2)
+        got_stop.set()
+        return SimpleNamespace(status="STOPPED", answer="중단", steps=[1], report_path="reports/g.md")
+
+    bot, client, _ = make_bot(tmp_path)
+    bot.goal_runner = goal_runner
+    bot.handle_update(msg("/goal"))
+    assert "사용법" in client.texts[-1][1]
+    bot.handle_update(msg("/goal 뉴스 요약"))
+    assert started.wait(2)
+    bot.handle_update(msg("/goal 또 다른 목표"))
+    assert "이미 실행 중" in client.texts[-1][1]
+    bot.handle_update(msg("/stop"))
+    assert got_stop.wait(2)
+    for _ in range(50):
+        if any("중단됨" in t for _, t in client.texts):
+            break
+        threading.Event().wait(0.02)
+    texts = "\n".join(t for _, t in client.texts)
+    assert "목표 접수" in texts and "🔧 1/12" in texts and "/get reports/g.md" in texts
+    bot.handle_update(msg("/stop"))
+    assert "진행 중인 작업이 없습니다" in client.texts[-1][1]
+
+
+def test_tools_command(tmp_path):
+    bot, client, _ = make_bot(tmp_path)
+    bot.tools_desc = "- web_search: 웹 검색"
+    bot.handle_update(msg("/tools"))
+    assert "web_search" in client.texts[-1][1]

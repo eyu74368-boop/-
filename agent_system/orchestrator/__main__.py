@@ -9,6 +9,9 @@
 
   # 3) 자율 루프: 로컬 AI 판단 → Claude 계획 → 실행 반복 (Ollama + ANTHROPIC_API_KEY 필요)
   python -m orchestrator loop --rules config/rules.example.json --max-rounds 3
+
+  # 4) 로컬 AI 자율 실행: 로컬 AI 가 도구를 골라 목표 수행 (Ollama 만 있으면 됨)
+  python -m orchestrator auto "상수도 누수 탐지 최신 뉴스 5개 요약해서 저장" --rules config/rules.autonomy.json
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 from typing import Dict
 
@@ -78,13 +82,25 @@ def cmd_loop(args, rules: Rules) -> int:
     return 4
 
 
+def cmd_auto(args, rules: Rules) -> int:
+    """로컬 AI 자율 실행 (진행 상황은 콘솔에 출력)."""
+    from .registry import build_autonomous_agent
+
+    agent = build_autonomous_agent(args.workspace, rules, on_event=print, max_steps=args.max_steps)
+    res = agent.run(args.goal)
+    print(f"\n[{res.status}] {len(res.steps)}단계\n{res.answer}")
+    if res.report_path:
+        print(f"실행 기록: {os.path.join(args.workspace, res.report_path)}")
+    return 0 if res.status == "DONE" else 1
+
+
 def main() -> int:
     """CLI 진입점."""
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s")
     load_env()
     p = argparse.ArgumentParser(prog="orchestrator")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("run", "loop"):
+    for name in ("run", "loop", "auto"):
         sp = sub.add_parser(name)
         sp.add_argument("--rules", required=True, help="사용자 규칙 JSON")
         sp.add_argument("--workspace", default="./agent_workspace")
@@ -94,8 +110,11 @@ def main() -> int:
             sp.add_argument("plan", help="태스크 계획 JSON")
             sp.add_argument("--mock", action="store_true", help="API 없이 가짜 에이전트로 실행")
             sp.add_argument("--resume", action="store_true", help="이전 완료 태스크 건너뛰기")
-        else:
+        elif name == "loop":
             sp.add_argument("--max-rounds", type=int, default=3)
+        else:
+            sp.add_argument("goal", help="목표 (따옴표로 감싸기)")
+            sp.add_argument("--max-steps", type=int, default=12)
     args = p.parse_args()
 
     try:
@@ -104,7 +123,11 @@ def main() -> int:
         log.error("규칙 파일 오류: %s", e)
         return 2
     try:
-        return cmd_run(args, rules) if args.cmd == "run" else cmd_loop(args, rules)
+        if args.cmd == "run":
+            return cmd_run(args, rules)
+        if args.cmd == "auto":
+            return cmd_auto(args, rules)
+        return cmd_loop(args, rules)
     except PlanError as e:
         log.error("계획 오류: %s", e)
         return 2

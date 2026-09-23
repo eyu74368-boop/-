@@ -1,0 +1,7 @@
+{
+  "goal": "개인 업무 보조: 자료 조사·요약·정리, 시장 지표 확인, 이미지 확인, 보고",
+  "allowed_agents": [],
+  "max_heavy_calls_per_run": 5,
+  "allowed_domains": [],
+  "forbidden_keywords": ["로그인", "비밀번호", "password", "결제", "주문 실행", "매수 주문", "매도 주문", "회원가입", "rm -rf"]
+}
