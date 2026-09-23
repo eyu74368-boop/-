@@ -46,8 +46,8 @@
    최대 라운드, 누적 `total_cost_usd` 한도(.env `CLAUDE_MAX_COST_USD`), 하루 사이클 수 한도.
 4. 텔레그램: `/mission 목표`, `/mission repeat 목표`, `/mission status` → `bot.run_background()` 사용.
 5. `config/proxy_profile.md`: 사용자의 의도·선호·금지사항 (대리인 판단 기준). 사용자와 함께 작성.
-6. 과금: `-p` 는 로그인된 Pro/Max 구독 한도를 사용, `ANTHROPIC_API_KEY` 가 있으면 API 과금이 우선.
-   사용자에게 어느 쪽을 쓸지 확인할 것.
+6. 과금: **사용자 결정 — Pro/Max 구독 로그인만 사용.** `ANTHROPIC_API_KEY` 가 설정돼 있으면 API 과금이 우선하므로,
+   runner 는 subprocess 환경에서 `ANTHROPIC_API_KEY` 를 제거하고 실행할 것. `--bare` 모드 사용 금지(구독 로그인 불가).
 
 ## 4. 운영 규칙 (CLAUDE.md 요약)
 한국어 답변·결론 먼저, PEP 8 + 한국어 독스트링, 커밋 `[feat]/[fix]/[docs]` 한국어, 패키지 설치 시 명령과 이유 명시,
