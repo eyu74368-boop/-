@@ -104,6 +104,8 @@ class TelegramBot:
         plan_dirs: Iterable[str] = (),
         goal_runner: Optional[GoalRunner] = None,
         tools_desc: str = "",
+        extra_commands: Optional[Dict[str, Callable[[int, str], None]]] = None,
+        extra_help: str = "",
     ):
         self.client = client
         self.allowed: Set[int] = set(allowed_chat_ids)
@@ -119,6 +121,8 @@ class TelegramBot:
         self.offset_path = os.path.join(self.workspace, ".telegram_offset")
         self.history: Dict[int, Deque[Dict[str, str]]] = defaultdict(lambda: deque(maxlen=HISTORY_TURNS * 2))
         self.goal_runner = goal_runner
+        self.extra_commands = dict(extra_commands or {})
+        self.extra_help = extra_help
         self.tools_desc = tools_desc
         self._run_lock = threading.Lock()  # /run 과 /goal 은 동시에 하나만
         self._goal_stop = threading.Event()
@@ -205,8 +209,8 @@ class TelegramBot:
 
     def handle_command(self, chat_id: int, cmd: str, arg: str) -> None:
         handlers = {
-            "/start": lambda: self.reply(chat_id, HELP),
-            "/help": lambda: self.reply(chat_id, HELP),
+            "/start": lambda: self.reply(chat_id, self.help_text()),
+            "/help": lambda: self.reply(chat_id, self.help_text()),
             "/status": lambda: self.cmd_status(chat_id),
             "/reset": lambda: self.cmd_reset(chat_id),
             "/files": lambda: self.cmd_files(chat_id, arg),
@@ -217,11 +221,40 @@ class TelegramBot:
             "/stop": lambda: self.cmd_stop(chat_id),
             "/tools": lambda: self.reply(chat_id, self.tools_desc or "도구 정보가 없습니다."),
         }
+        if cmd in self.extra_commands:
+            self.extra_commands[cmd](chat_id, arg)
+            return
         handler = handlers.get(cmd)
         if handler is None:
-            self.reply(chat_id, f"알 수 없는 명령: {cmd}\n\n{HELP}")
+            self.reply(chat_id, f"알 수 없는 명령: {cmd}\n\n{self.help_text()}")
         else:
             handler()
+
+    def help_text(self) -> str:
+        return HELP + ("\n\n" + self.extra_help if self.extra_help else "")
+
+    def run_background(self, chat_id: int, start_text: str, work: Callable[[threading.Event], str]) -> bool:
+        """오래 걸리는 작업을 백그라운드로 실행한다. /run·/goal 과 동시에 하나만, /stop 으로 중단.
+
+        work(stop_event) 가 돌려준 문자열을 완료 메시지로 보낸다. 이미 실행 중이면 False.
+        """
+        if not self._run_lock.acquire(blocking=False):
+            self.reply(chat_id, "이미 실행 중인 작업이 있습니다. /stop 으로 중단하거나 끝날 때까지 기다려 주세요.")
+            return False
+        self._goal_stop.clear()
+
+        def worker() -> None:
+            try:
+                self.reply(chat_id, work(self._goal_stop))
+            except Exception as e:
+                log.exception("백그라운드 작업 실패")
+                self.reply(chat_id, f"❌ 작업 실패: {e}")
+            finally:
+                self._run_lock.release()
+
+        self.reply(chat_id, start_text)
+        threading.Thread(target=worker, daemon=True, name="bg-task").start()
+        return True
 
     def handle_chat(self, chat_id: int, text: str) -> None:
         """로컬 AI 와 대화한다."""

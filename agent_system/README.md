@@ -72,6 +72,29 @@ python -m telegram_bot
 
 계획 파일은 `agent_workspace/plans/` 또는 `config/` 에 이름에 `plan` 이 들어간 `.json` 으로 둔다.
 
+## 웹소설 작업실 (`/novel`)
+
+```
+research(시장 조사) → ideas(기획안 3개) → start 번호(설정집·개요) → write(장면 4개로 나눠 집필
+→ 편집자 모델 검토 → 7점 미만이면 1회 고쳐 쓰기 → 요약 저장) → fix(작가 피드백) → ok(확정) → 사람이 플랫폼 업로드
+```
+
+| 명령 | 동작 |
+|---|---|
+| `/novel research 로판` | 검색 + 로컬 AI 로 장르·플랫폼·기회·주의점 정리 |
+| `/novel ideas 회귀 판타지` | 기획안 3개 (제목, 로그라인, 1화 훅, 차별점, 추천 연재처) |
+| `/novel start 2` | 2번 기획으로 설정집(bible.md) + 10화 개요 작성, 파일 전송 |
+| `/novel write` / `write 5` | 다음 회차(또는 5화) 약 5,000자 집필, 원고 파일 전송 |
+| `/novel auto 3` | 3개 회차 연속 집필 (최대 10, `/stop` 으로 중단) |
+| `/novel fix 3 대사 줄이고 마지막 긴장감 올려줘` | 피드백 반영 수정 (이전 원고는 history/ 보관) |
+| `/novel ok 3` | 연재용 확정 표시 |
+| `/novel daily 07:00` / `off` | 매일 정해진 시각에 다음 회차 자동 집필 |
+| `/novel get 3` · `bible` · `outline`, `status`, `list`, `select` | 파일·상태·작품 전환 |
+
+- 모델: 집필 `exaone3.5:7.8b`(한국어), 기획·검토 `qwen2.5:7b`(JSON). `.env` 의 `NOVEL_*` 로 변경
+- 저장 위치: `agent_workspace/novels/<작품>/` (project.json, bible.md, outline.json, chapters/, summaries/, reviews/)
+- 플랫폼 업로드·계약·정산은 사람이 직접 한다. 각 플랫폼·공모전의 **AI 활용 규정과 표기 의무를 연재 전에 확인**할 것
+
 ## 로컬 AI 자율 실행 (`/goal`)
 
 텔레그램에서 `/goal 목표` 를 보내면 로컬 AI(qwen2.5)가 아래 도구 중 하나를 골라 실행하고,

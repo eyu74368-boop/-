@@ -16,6 +16,7 @@ import signal
 import sys
 
 from envfile import load_env
+from novel.telegram import NOVEL_HELP, NovelCommands, build_studio_factory
 from orchestrator.agents.llm import OllamaAgent
 from orchestrator.guard import Rules
 from orchestrator.registry import build_autonomous_agent, run_plan_file
@@ -88,7 +89,11 @@ def main() -> int:
         plan_dirs=[os.path.join(workspace, "plans"), "config"],
         goal_runner=goal_runner,
         tools_desc="/goal 에서 로컬 AI 가 쓸 수 있는 도구\n\n" + tools_desc,
+        extra_help=NOVEL_HELP,
     )
+    novel = NovelCommands(bot, build_studio_factory(workspace), os.path.join(workspace, "novels"))
+    bot.extra_commands["/novel"] = novel.handle
+    novel.start_scheduler()  # /novel daily 예약이 있으면 재시작 후에도 이어서 동작
     signal.signal(signal.SIGTERM, bot.stop)
     signal.signal(signal.SIGINT, bot.stop)
     bot.run_forever()

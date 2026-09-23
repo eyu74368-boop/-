@@ -68,17 +68,25 @@ class OllamaAgent(HttpLLMAgent):
         super().__init__(**kw)
         self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
         self.host = host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        # 긴 원고 생성은 수 분 걸릴 수 있고, 기본 입력 길이(2~4천 토큰)로는 설정집이 잘린다
+        self.http_timeout = int(os.getenv("OLLAMA_TIMEOUT", "300"))
+        self.num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
     def chat(self, system: str, user: str, json_mode: bool = False) -> str:
         """Ollama /api/chat 호출 (단발 질의)."""
         return self.chat_messages(system, [{"role": "user", "content": user}], json_mode)
 
-    def chat_messages(self, system: str, messages: List[Dict[str, str]], json_mode: bool = False) -> str:
-        """대화 이력(messages)을 포함해 Ollama /api/chat 을 호출한다."""
+    def chat_messages(self, system: str, messages: List[Dict[str, str]], json_mode: bool = False,
+                      options: Optional[Dict[str, Any]] = None) -> str:
+        """대화 이력(messages)을 포함해 Ollama /api/chat 을 호출한다.
+
+        options 예: {"temperature": 0.8} (num_ctx 는 기본 적용)
+        """
         body: Dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *messages],
             "stream": False,
+            "options": {"num_ctx": self.num_ctx, **(options or {})},
         }
         if json_mode:
             body["format"] = "json"
