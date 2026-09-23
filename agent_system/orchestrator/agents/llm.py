@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -69,16 +70,50 @@ class OllamaAgent(HttpLLMAgent):
         self.host = host or os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
     def chat(self, system: str, user: str, json_mode: bool = False) -> str:
-        """Ollama /api/chat 호출."""
-        body = {
+        """Ollama /api/chat 호출 (단발 질의)."""
+        return self.chat_messages(system, [{"role": "user", "content": user}], json_mode)
+
+    def chat_messages(self, system: str, messages: List[Dict[str, str]], json_mode: bool = False) -> str:
+        """대화 이력(messages)을 포함해 Ollama /api/chat 을 호출한다."""
+        body: Dict[str, Any] = {
             "model": self.model,
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "messages": [{"role": "system", "content": system}, *messages],
             "stream": False,
         }
         if json_mode:
             body["format"] = "json"
         data = self._post(f"{self.host}/api/chat", json=body)
         return data["message"]["content"]
+
+    def health(self, test_prompt: bool = True) -> Dict[str, Any]:
+        """서버 연결·모델 설치·응답 여부를 점검한다. 예외 대신 결과 dict 를 반환한다."""
+        report: Dict[str, Any] = {
+            "host": self.host, "model": self.model, "reachable": False,
+            "model_installed": False, "models": [], "reply": None, "latency_sec": None, "error": None,
+        }
+        try:
+            res = self.session.get(f"{self.host}/api/tags", timeout=5)
+            res.raise_for_status()
+            report["reachable"] = True
+            report["models"] = [m.get("name", "") for m in res.json().get("models", [])]
+        except (requests.RequestException, ValueError) as e:
+            report["error"] = f"Ollama 서버 연결 실패: {type(e).__name__} ({self.host})"
+            return report
+
+        wanted = self.model if ":" in self.model else self.model + ":latest"
+        report["model_installed"] = wanted in report["models"] or self.model in report["models"]
+        if not report["model_installed"]:
+            report["error"] = f"모델 미설치: ollama pull {self.model}"
+            return report
+
+        if test_prompt:
+            started = time.monotonic()
+            try:
+                report["reply"] = self.chat("짧게 답하라.", "작동 점검입니다. '정상'이라고만 답하세요.")
+                report["latency_sec"] = round(time.monotonic() - started, 2)
+            except Exception as e:
+                report["error"] = f"응답 생성 실패: {e}"
+        return report
 
     def _call(self, prompt: str) -> str:
         return self.chat(SYSTEM_PROMPT, prompt)

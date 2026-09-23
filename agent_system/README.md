@@ -25,12 +25,53 @@
 
 | 경로 | 내용 |
 |---|---|
-| `orchestrator/` | 멀티 에이전트 엔진 (models, guard, engine, commander, agents/) |
+| `orchestrator/` | 멀티 에이전트 엔진 (models, guard, engine, commander, registry, agents/) |
 | `market_monitor/` | 시장 모니터링 (config, indicators, db, notifier, monitor) |
+| `telegram_bot/` | 텔레그램 대화·명령·파일 전송 봇 |
+| `tools/check_local_ai.py` | 로컬 AI(Ollama) 작동 점검·명령 테스트 |
+| `tools/check_telegram.py` | 텔레그램 토큰 점검·chat_id 확인·테스트 발송 |
 | `dashboard.py` | Streamlit 관리 화면 (선택) |
 | `config/*.example.json` | 규칙·계획·종목 설정 예시 |
 | `deploy/` | systemd 서비스, 장애 알림 스크립트, 환경변수 예시 |
-| `tests/` | 단위 테스트 39개 (네트워크·API 키 불필요) |
+| `tests/` | 단위 테스트 52개 (네트워크·API 키 불필요) |
+
+## 텔레그램으로 로컬 AI 에 명령하기 (3단계)
+
+**1단계 — 로컬 AI 작동 확인**
+```bash
+# Ollama 설치: https://ollama.com/download
+ollama pull qwen2.5:7b
+python tools/check_local_ai.py                 # 연결·모델·응답 점검
+python tools/check_local_ai.py --router        # 관제소 JSON 판단 점검
+python tools/check_local_ai.py --ask "오늘 할 일 정리해줘"
+```
+
+**2단계 — 텔레그램 연결 확인**
+```bash
+# 텔레그램에서 @BotFather → /newbot → 토큰 발급 → 만든 봇에게 아무 메시지 전송
+export TELEGRAM_BOT_TOKEN=123456:ABC...
+python tools/check_telegram.py                           # 토큰 확인 + 내 chat_id 표시
+python tools/check_telegram.py --send <chat_id> --file README.md   # 메시지·파일 발송 테스트
+```
+
+**3단계 — 대화·파일 전송 봇 실행**
+```bash
+export TELEGRAM_ALLOWED_CHAT_IDS=<chat_id>   # 이 chat_id 의 명령만 받음 (필수)
+python -m telegram_bot
+```
+
+| 텔레그램에서 | 동작 |
+|---|---|
+| 일반 문장 | 로컬 AI 와 대화 (최근 10턴 기억) |
+| 파일·사진 보내기 | `agent_workspace/inbox/` 에 저장 |
+| `/get reports/daily.json` | 작업 폴더의 파일 받기 (폴더 밖 경로 차단) |
+| `/files [폴더]` | 파일 목록 |
+| `/status` | 로컬 AI 상태 점검 |
+| `/plans`, `/run 계획.json` | 계획 목록 / 백그라운드 실행 후 결과 보고 (동시 1개) |
+| `/reset`, `/help` | 대화 초기화 / 도움말 |
+
+계획 파일은 `agent_workspace/plans/` 또는 `config/` 에 이름에 `plan` 이 들어간 `.json` 으로 둔다.
+허용되지 않은 chat_id 의 메시지는 응답 없이 무시하고 로그에만 남긴다.
 
 ## 빠른 시작
 
@@ -92,7 +133,7 @@ python -m market_monitor
 - **일봉 추세 1시간 캐시**: 알림마다 1년치 데이터를 다시 받던 부하 제거.
 - **설정 파일 분리·검증·원자적 저장**: `configs.json` 이 손상돼도 마지막 정상 설정 유지.
 - **SIGTERM 정상 종료**, 전 종목 5회 연속 수집 실패 시 텔레그램 경고.
-- **모듈 분리 + 테스트 39개**: 네트워크 없이 검증 가능.
+- **모듈 분리 + 테스트**: 네트워크 없이 검증 가능.
 
 ### 🟢 3순위 — 지금 구조 그대로 두고 천천히 켜면 되는 것
 
@@ -131,7 +172,7 @@ sudo chmod 600 /etc/agent_system/monitor.env && sudo nano /etc/agent_system/moni
 sudo cp /opt/agent_system/deploy/*.service /etc/systemd/system/
 sudo install -m 755 /opt/agent_system/deploy/systemd-telegram-notify.sh /usr/local/bin/
 sudo systemctl daemon-reload
-sudo systemctl enable --now market-monitor
+sudo systemctl enable --now market-monitor telegram-bot
 journalctl -u market-monitor -f
 ```
 

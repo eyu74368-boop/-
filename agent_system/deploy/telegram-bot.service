@@ -1,0 +1,27 @@
+# /etc/systemd/system/telegram-bot.service
+[Unit]
+Description=Telegram command/chat bot (local AI + file transfer)
+After=network-online.target ollama.service
+Wants=network-online.target
+OnFailure=unit-failed-telegram@%n.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=monitor
+Group=monitor
+WorkingDirectory=/opt/agent_system
+EnvironmentFile=/etc/agent_system/monitor.env
+Environment=BOT_WORKSPACE=/opt/agent_system/data/workspace
+ExecStart=/opt/agent_system/venv/bin/python -m telegram_bot
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/agent_system/data
+
+[Install]
+WantedBy=multi-user.target
