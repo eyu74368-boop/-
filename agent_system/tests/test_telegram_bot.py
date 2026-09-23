@@ -232,3 +232,32 @@ def test_env_file_parsing_and_no_override(tmp_path, monkeypatch):
     assert os.environ["TELEGRAM_X"] == "new" and os.environ["KEEP"] == "shell"
     assert applied == {"TELEGRAM_X": "new"}
     assert load_env(str(tmp_path / "missing.env")) == {}
+
+
+# ---------- 실제 TelegramClient (가짜 HTTP 세션) ----------
+class RecordingSession:
+    def __init__(self):
+        self.posts = []
+
+    def post(self, url, timeout=None, json=None, data=None, files=None):
+        self.posts.append({"method": url.rsplit("/", 1)[-1], "timeout": timeout, "json": json})
+        return FakeResp(200, {"ok": True, "result": []})
+
+
+def test_client_get_updates_separates_timeouts():
+    from telegram_bot.api import TelegramClient
+    s = RecordingSession()
+    assert TelegramClient("1:abc", session=s).get_updates(offset=5, timeout=0) == []
+    call = s.posts[0]
+    assert call["method"] == "getUpdates"
+    assert call["json"]["timeout"] == 0 and call["json"]["offset"] == 5
+    assert call["timeout"] == 15
+
+
+def test_client_send_document_uses_long_timeout(tmp_path):
+    from telegram_bot.api import TelegramClient
+    s = RecordingSession()
+    f = tmp_path / "a.txt"
+    f.write_text("x")
+    TelegramClient("1:abc", session=s).send_document(1, str(f), caption="c")
+    assert s.posts[0]["method"] == "sendDocument" and s.posts[0]["timeout"] == 120

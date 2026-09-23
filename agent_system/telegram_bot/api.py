@@ -35,16 +35,19 @@ class TelegramClient:
         self.session = session or requests.Session()
         self.retries = retries
 
-    def call(self, method: str, timeout: float = 20, files=None, **params) -> Any:
-        """API 메서드를 호출하고 result 를 반환한다. 429 는 대기 후 재시도."""
+    def call(self, method: str, http_timeout: float = 20, files=None, **params) -> Any:
+        """API 메서드를 호출하고 result 를 반환한다. 429 는 대기 후 재시도.
+
+        http_timeout 은 통신 제한 시간이다. (getUpdates 의 ``timeout`` 파라미터와 구분)
+        """
         url = f"{API}/bot{self.token}/{method}"
         last_err = ""
         for attempt in range(1, self.retries + 1):
             try:
                 if files:
-                    res = self.session.post(url, data=params, files=files, timeout=timeout)
+                    res = self.session.post(url, data=params, files=files, timeout=http_timeout)
                 else:
-                    res = self.session.post(url, json=params, timeout=timeout)
+                    res = self.session.post(url, json=params, timeout=http_timeout)
                 data = res.json()
             except (requests.RequestException, ValueError) as e:
                 last_err = type(e).__name__
@@ -71,7 +74,7 @@ class TelegramClient:
         params: Dict[str, Any] = {"timeout": timeout, "allowed_updates": ["message"]}
         if offset is not None:
             params["offset"] = offset
-        return self.call("getUpdates", timeout=timeout + 15, **params)
+        return self.call("getUpdates", http_timeout=timeout + 15, **params)
 
     # ---------- 발송 ----------
     def send_text(self, chat_id: int, text: str) -> None:
@@ -93,7 +96,7 @@ class TelegramClient:
         if size > UPLOAD_LIMIT:
             raise TelegramError(f"파일이 너무 큽니다: {size / 1e6:.1f}MB (최대 50MB)")
         with open(path, "rb") as f:
-            self.call("sendDocument", timeout=120, files={"document": (os.path.basename(path), f)},
+            self.call("sendDocument", http_timeout=120, files={"document": (os.path.basename(path), f)},
                       chat_id=chat_id, caption=caption[:1000])
 
     # ---------- 수신 파일 ----------
