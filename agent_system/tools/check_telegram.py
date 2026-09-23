@@ -18,6 +18,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from envfile import load_env  # noqa: E402
+
+load_env()  # agent_system/.env 자동 로드
+
 from telegram_bot.api import TelegramClient, TelegramError  # noqa: E402
 
 

@@ -9,3 +9,4 @@ data/
 configs.json
 rules.json
 *.env
+.env

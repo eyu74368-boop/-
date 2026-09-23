@@ -218,3 +218,17 @@ def test_health_model_missing_and_ok():
     h = OllamaAgent(model="qwen2.5", host="http://x", session=FakeSession(["qwen2.5:latest"])).health()
     assert h["model_installed"] and h["reply"] == "정상" and h["error"] is None
     assert "로컬 AI 정상" in format_health(h)
+
+
+# ---------- .env 로드 ----------
+def test_env_file_parsing_and_no_override(tmp_path, monkeypatch):
+    from envfile import load_env, parse_env
+    assert parse_env('﻿# 주석\nA=1\nexport B="2"\n$env:C = \'3\'\nD=\n') == {"A": "1", "B": "2", "C": "3", "D": ""}
+    path = tmp_path / ".env"
+    path.write_text("﻿TELEGRAM_X=new\nKEEP=file\n", encoding="utf-8")
+    monkeypatch.delenv("TELEGRAM_X", raising=False)
+    monkeypatch.setenv("KEEP", "shell")
+    applied = load_env(str(path))
+    assert os.environ["TELEGRAM_X"] == "new" and os.environ["KEEP"] == "shell"
+    assert applied == {"TELEGRAM_X": "new"}
+    assert load_env(str(tmp_path / "missing.env")) == {}

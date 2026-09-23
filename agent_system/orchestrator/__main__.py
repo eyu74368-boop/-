@@ -20,6 +20,8 @@ import logging
 import sys
 from typing import Dict
 
+from envfile import load_env
+
 from .agents.llm import ClaudeAgent, OllamaAgent
 from .commander import Commander, Planner, summarize
 from .engine import TaskEngine
@@ -79,6 +81,7 @@ def cmd_loop(args, rules: Rules) -> int:
 def main() -> int:
     """CLI 진입점."""
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s")
+    load_env()
     p = argparse.ArgumentParser(prog="orchestrator")
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("run", "loop"):

@@ -16,6 +16,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from envfile import load_env  # noqa: E402
+
+load_env()  # agent_system/.env 자동 로드
+
 from orchestrator.agents.llm import OllamaAgent  # noqa: E402
 from orchestrator.commander import Commander  # noqa: E402
 from orchestrator.guard import Rules  # noqa: E402

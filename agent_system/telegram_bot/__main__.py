@@ -15,6 +15,7 @@ import os
 import signal
 import sys
 
+from envfile import load_env
 from orchestrator.agents.llm import OllamaAgent
 from orchestrator.guard import Rules
 from orchestrator.registry import run_plan_file
@@ -31,6 +32,7 @@ def parse_chat_ids(raw: str) -> list:
 def main() -> int:
     """환경변수를 읽고 봇을 실행한다."""
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s")
+    load_env()
     try:
         chat_ids = parse_chat_ids(os.getenv("TELEGRAM_ALLOWED_CHAT_IDS", ""))
     except ValueError:

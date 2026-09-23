@@ -4,6 +4,8 @@ import logging
 import signal
 import sys
 
+from envfile import load_env
+
 from .config import ConfigError, Settings
 from .db import AlertDatabase
 from .monitor import MarketMonitor
@@ -13,6 +15,7 @@ from .notifier import TelegramNotifier
 def main() -> int:
     """설정 로드 후 모니터링 루프를 실행한다."""
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s")
+    load_env()
     try:
         settings = Settings.from_env()
     except ConfigError as e:
