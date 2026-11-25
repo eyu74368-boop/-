@@ -13,20 +13,29 @@ GUARD = ("Keep the character exactly as in the first frame: same proportions, sa
 
 
 def empty_list(shots: list[Shot], style: str = "") -> str:
-    """클립이 없는 장면만 골라 마크다운 목록으로 만든다."""
-    out = ["# 빈 장면 목록", "", f"공통 지시: {GUARD}", ""]
+    """영상 파일이 아직 없는 장면을 클립 이름별로 묶어 마크다운 목록으로 만든다.
+
+    같은 클립을 여러 자리(후렴 반복 등)에 쓰면 한 번만 만들면 되므로 한 항목으로 묶고, 필요한 최대 길이를 적는다.
+    """
+    import os
+    groups: dict[str, list[tuple[int, Shot]]] = {}
+    for i, s in enumerate(shots):
+        if s.clip and os.path.exists(s.clip):
+            continue
+        key = os.path.basename(s.clip) if s.clip else f"scene_{i:03d}.mp4"
+        groups.setdefault(key, []).append((i, s))
+    out = ["# 빈 장면 목록", "", f"만들 영상 {len(groups)}개. 만든 영상은 clips 폴더에 아래 이름으로 넣으면 다음 렌더링에 자동으로 들어갑니다.", "",
+           f"공통 지시: {GUARD}", ""]
     if style:
         out += [f"화풍: {style}", ""]
-    n = 0
-    for i, s in enumerate(shots):
-        if s.clip:
-            continue
-        n += 1
-        prompt = s.prompt or "(prompt 칸이 비어 있음: 배치표에 영어 지시문을 적으세요)"
-        out += [f"## 장면 {i} · {s.start:.2f}s ~ {s.end:.2f}s ({s.length:.2f}s)",
-                f"- 가사/메모: {s.note}",
-                f"- 첫 이미지: scenes/scene_{i:03d}.png",
-                f"- 영상 파일 이름: clips/scene_{i:03d}.mp4",
+    for key, items in groups.items():
+        first = next((s for _, s in items if s.prompt), items[0][1])
+        need = max(s.length for _, s in items)
+        slots = ", ".join(f"{s.start:.1f}s" for _, s in items)
+        prompt = first.prompt or "(prompt 칸이 비어 있음: 배치표에 영어 지시문을 적으세요)"
+        out += [f"## {key} (필요 길이 {need:.1f}초)",
+                f"- 쓰는 자리: {slots}",
+                f"- 가사/메모: {first.note}",
+                f"- 첫 이미지: scenes/{os.path.splitext(key)[0]}.png",
                 "```", f"{prompt} {style} {GUARD}".strip(), "```", ""]
-    out.insert(1, f"\n총 {n}개 장면이 비어 있습니다. 영상을 만들면 clips 폴더에 위 이름으로 넣고 배치표 clip 칸에 적으세요.\n")
     return "\n".join(out)

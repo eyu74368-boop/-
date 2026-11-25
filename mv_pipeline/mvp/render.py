@@ -148,7 +148,8 @@ def render(shots: list[Shot], tl: Timeline, song: str, ass: str | None, out: str
                 continue
             nxt_tr = shots[i + 1].transition if i + 1 < len(shots) else 0.0
             extra = min(int(round(nxt_tr * FPS)), n)
-            if s.clip and os.path.exists(s.clip):
+            has_clip = bool(s.clip) and os.path.exists(s.clip)
+            if has_clip:
                 src = clip_frames(s, n + extra, w, h)
             else:
                 if s.clip:
@@ -164,7 +165,7 @@ def render(shots: list[Shot], tl: Timeline, song: str, ass: str | None, out: str
                 else:
                     new_pending.append(fr.copy())
             pending = new_pending
-            log(f"  장면 {i + 1}/{len(shots)} {s.start:7.2f}s ~ {s.end:7.2f}s {'클립' if s.clip else '빈 장면'}")
+            log(f"  장면 {i + 1}/{len(shots)} {s.start:7.2f}s ~ {s.end:7.2f}s {'클립' if has_clip else '빈 장면'}")
         while written < total:  # 끝 부분 보충
             p.stdin.write(np.zeros((h, w, 3), np.uint8).tobytes())
             written += 1
